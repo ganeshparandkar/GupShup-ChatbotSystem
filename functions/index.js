@@ -67,7 +67,9 @@ exports.apicall = functions.https.onRequest((req, res) => {
           .child('count')
           .set(2);
         res.send(
-          `pincode is set ${inputdata} \n now enter item no and value of count is ${cval} and type of cval is ${typeof cval}`
+          `the type of phone is ${typeof userData.sender
+            .phone} \n phone no. is ${userData.sender.phone}
+          \n pincode is set ${inputdata} \n now enter item no and value of count is ${cval} and type of cval is ${typeof cval}`
         );
       }
 
