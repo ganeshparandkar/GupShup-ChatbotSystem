@@ -19,6 +19,10 @@ exports.apicall = functions.https.onRequest((req, res) => {
   const userData = req.body.payload;
   const inputdata = data.text;
 
+// check if user exist  if exist then check count or just follow the sequence
+// removal timeout and sequential code 
+// read excel sheet from drive
+
   const startConvo = [
     'hi',
     'Hi',
@@ -29,10 +33,24 @@ exports.apicall = functions.https.onRequest((req, res) => {
     'Hey',
     'Heyy',
   ];
+
   /* -----
     Logical programming starts
 -------*/
   if (req.method == 'POST') {
+    var cval;
+
+    function getvalue() {
+      database
+        .ref('chatbot')
+        .child(`${userData.sender.phone.toString()}`)
+        .on('value', (snapshot) => {
+          // console.log(typeof snapshot.val().id);
+          cval = snapshot.val().count;
+          return cval;
+        });
+    }
+
     // !
 
     if (startConvo.includes(data.text)) {
@@ -41,66 +59,61 @@ exports.apicall = functions.https.onRequest((req, res) => {
         name: `${userData.sender.name}`,
         phone: `${userData.sender.phone}`,
       });
-      res.send('Hi \n Enter pincode');
+      res.send('Hi, Please provide the PIN Code.');
     }
 
     if (!isNaN(inputdata)) {
-      let cval;
 
-      database
-        .ref('chatbot')
-        .child(`${userData.sender.phone.toString()}`)
-        .on('value', (snapshot) => {
-          // console.log(typeof snapshot.val().id);
-          cval = snapshot.val().count;
-        });
+      cval = getvalue();
 
-      if (inputdata.length === 6) {
-        database
-          .ref('chatbot')
-          .child(userData.sender.phone)
-          .child('pincode')
-          .set(inputdata);
-        database
-          .ref('chatbot')
-          .child(userData.sender.phone)
-          .child('count')
-          .set(2);
-        res.send(
-          `the type of phone is ${typeof userData.sender
-            .phone} \n phone no. is ${userData.sender.phone}
-          \n pincode is set ${inputdata} \n now enter item no and value of count is ${cval} and type of cval is ${typeof cval}`
-        );
-      }
+      setTimeout(() => {
+        if (inputdata.length === 6) {
+          database
+            .ref('chatbot')
+            .child(userData.sender.phone)
+            .child('pincode')
+            .set(inputdata);
+          database
+            .ref('chatbot')
+            .child(userData.sender.phone)
+            .child('count')
+            .set(2);
+          res.send(`Thanks, here is today's menu. Please let us know what you want, \n
+          make sure you enter the item number and qty.
+          1 - Product 1\n
+          2 - Product 2\n
+          3 - Product 3`);
+        }
 
-      if (inputdata.length < 3) {
-        database
-          .ref('chatbot')
-          .child(userData.sender.phone)
-          .child('count')
-          .set(3);
-        database
-          .ref('chatbot')
-          .child(userData.sender.phone)
-          .child('itemId')
-          .set(inputdata);
-        res.send(
-          `you have selected ${inputdata}  item.\n now enter item quantity`
-        );
-      }
-      if (cval == 3) {
-        database
-          .ref('chatbot')
-          .child(userData.sender.phone)
-          .child('count')
-          .set(4);
-        database
-          .ref('chatbot')
-          .child(userData.sender.phone)
-          .child('itemquantity')
-          .set(inputdata);
-        res.send(`you ordered ${inputdata} items.\n now enter the address`);
-      }
+        if (cval == 2) {
+          database
+            .ref('chatbot')
+            .child(userData.sender.phone)
+            .child('count')
+            .set(4);
+          database
+            .ref('chatbot')
+            .child(userData.sender.phone)
+            .child('itemId')
+            .set(inputdata);
+          res.send(`Please enter quantity`);
+        }
+        if (cval == 4) {
+          database
+            .ref('chatbot')
+            .child(userData.sender.phone)
+            .child('count')
+            .set(4);
+          database
+            .ref('chatbot')
+            .child(userData.sender.phone)
+            .child('itemquantity')
+            .set(inputdata);
+          res.send(
+            res.send(`Ok great. Please let us know your address. ${cval}`)
+          );
+        }
+      }, 3000);
     }
   }
 });
