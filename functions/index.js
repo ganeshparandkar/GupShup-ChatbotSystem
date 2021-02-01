@@ -19,9 +19,9 @@ exports.apicall = functions.https.onRequest((req, res) => {
   const userData = req.body.payload;
   const inputdata = data.text;
 
-// check if user exist  if exist then check count or just follow the sequence
-// removal timeout and sequential code 
-// read excel sheet from drive
+  // check if user exist  if exist then check count or just follow the sequence
+  // removal timeout and sequential code
+  // read excel sheet from drive
 
   const startConvo = [
     'hi',
@@ -40,17 +40,6 @@ exports.apicall = functions.https.onRequest((req, res) => {
   if (req.method == 'POST') {
     var cval;
 
-    function getvalue() {
-      database
-        .ref('chatbot')
-        .child(`${userData.sender.phone.toString()}`)
-        .on('value', (snapshot) => {
-          // console.log(typeof snapshot.val().id);
-          cval = snapshot.val().count;
-          return cval;
-        });
-    }
-
     // !
 
     if (startConvo.includes(data.text)) {
@@ -62,30 +51,43 @@ exports.apicall = functions.https.onRequest((req, res) => {
       res.send('Hi, Please provide the PIN Code.');
     }
 
+    if (inputdata.length > 7) {
+      database
+        .ref('chatbot')
+        .child(userData.sender.phone)
+        .child('Address')
+        .set(inputdata);
+      database
+        .ref('chatbot')
+        .child(userData.sender.phone)
+        .child('count')
+        .set(6);
+      res.send('Thanks for contacting us.');
+    }
     if (!isNaN(inputdata)) {
-
-      cval = getvalue();
+      database
+        .ref('chatbot')
+        .child(`${userData.sender.phone.toString()}`)
+        .on('value', (snapshot) => {
+          // console.log(typeof snapshot.val().id);
+          cval = snapshot.val().count;
+        });
 
       setTimeout(() => {
-        if (inputdata.length === 6) {
-          database
-            .ref('chatbot')
-            .child(userData.sender.phone)
-            .child('pincode')
-            .set(inputdata);
+        if (cval == 4) {
           database
             .ref('chatbot')
             .child(userData.sender.phone)
             .child('count')
-            .set(2);
-          res.send(`Thanks, here is today's menu. Please let us know what you want, \n
-          make sure you enter the item number and qty.
-          1 - Product 1\n
-          2 - Product 2\n
-          3 - Product 3`);
+            .set(5);
+          database
+            .ref('chatbot')
+            .child(userData.sender.phone)
+            .child('itemquantity')
+            .set(inputdata);
+          res.send(res.send(`Ok great. Please let us know your address.`));
         }
-
-        if (cval == 2) {
+        if (cval == 3) {
           database
             .ref('chatbot')
             .child(userData.sender.phone)
@@ -98,22 +100,25 @@ exports.apicall = functions.https.onRequest((req, res) => {
             .set(inputdata);
           res.send(`Please enter quantity`);
         }
-        if (cval == 4) {
+
+        if (inputdata.length === 6 && cval == 1) {
+          database
+            .ref('chatbot')
+            .child(userData.sender.phone)
+            .child('pincode')
+            .set(inputdata);
           database
             .ref('chatbot')
             .child(userData.sender.phone)
             .child('count')
-            .set(4);
-          database
-            .ref('chatbot')
-            .child(userData.sender.phone)
-            .child('itemquantity')
-            .set(inputdata);
-          res.send(
-            res.send(`Ok great. Please let us know your address. ${cval}`)
-          );
+            .set(3);
+          res.send(`Thanks, here is today's menu. Please let us know what you want, \n
+          make sure you enter the item number and qty.
+          1 - Product 1\n
+          2 - Product 2\n
+          3 - Product 3`);
         }
-      }, 3000);
+      }, 2000);
     }
   }
 });
