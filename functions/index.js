@@ -43,6 +43,17 @@ const gsrun = async (cl) => {
   let dataArray = data.data.values; // array is stored from json to var
   console.log(dataArray);
 
+  // * updation
+  const update = {
+    //* for updation putting data into sheets
+    spreadsheetId: '19otL8gAQTUIYr63Td-v41u7RtvWuMSq2fP1QXCk2gEY',
+    range: 'Sheet1!G1',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: dataArray },
+  };
+
+  let res = await gsapi.spreadsheets.values.update(update);
+  // console.log(res);
   // * performing some operations on array according our needs
   // let newDataArray = dataArray.filter((row) => {
   //   return row;
@@ -71,16 +82,16 @@ exports.apicall = functions.https.onRequest((req, res) => {
   // removal timeout and sequential code
   // read excel sheet from drive
 
-  const startConvo = [
-    'hi',
-    'Hi',
-    'hii',
-    'hello',
-    'Hii',
-    'Hello',
-    'Hey',
-    'Heyy',
-  ];
+  // const startConvo = [
+  //   'hi',
+  //   'Hi',
+  //   'hii',
+  //   'hello',
+  //   'Hii',
+  //   'Hello',
+  //   'Hey',
+  //   'Heyy',
+  // ];
 
   /* -----
     Logical programming starts
