@@ -3,11 +3,59 @@ Declaration Part
 -------*/
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const { google } = require('googleapis');
+const keys = require('./key.json');
 
+/* -----
+Spreadsheet connectivity
+-------*/
+const client = new google.auth.JWT(keys.client_email, null, keys.private_key, [
+  'https://www.googleapis.com/auth/spreadsheets',
+]);
+
+client.authorize((err, tokens) => {
+  if (err) {
+    console.log(err);
+    return; // just get out from the function
+  } else {
+    console.log('Connected');
+    gsrun(client);
+  }
+});
+
+const gsrun = async (cl) => {
+  const gsapi = google.sheets({
+    version: 'v4',
+    auth: cl,
+  });
+
+  // const options = {
+  //   spreadsheetId: '1WOcA5K6oZt3murmZMW-00P0GXwrJ2TBKhQfKxPISTGU',
+  //   range: 'Data!A1:B11',
+
+  // };
+  const options = {
+    spreadsheetId: '19otL8gAQTUIYr63Td-v41u7RtvWuMSq2fP1QXCk2gEY',
+    range: 'Sheet1!A3:C6',
+  };
+
+  let data = await gsapi.spreadsheets.values.get(options);
+  let dataArray = data.data.values; // array is stored from json to var
+  console.log(dataArray);
+
+  // * performing some operations on array according our needs
+  // let newDataArray = dataArray.filter((row) => {
+  //   return row;
+  // });
+  // console.log(newDataArray);
+};
+
+// !-------------------------------------------------------------------------------------
 /* -----
  database initialization and setup
 -------*/
 // dont touch this
+
 admin.initializeApp({
   databaseURL: 'https://ct-chat-bot-2021-default-rtdb.firebaseio.com',
 });
@@ -39,8 +87,6 @@ exports.apicall = functions.https.onRequest((req, res) => {
 -------*/
   if (req.method == 'POST') {
     var cval;
-
-    // !
 
     if (startConvo.includes(data.text)) {
       database.ref(`chatbot/${userData.sender.phone}`).set({
