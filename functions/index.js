@@ -5,10 +5,10 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { google } = require('googleapis');
 const keys = require('./key.json');
-
 /* -----
 Spreadsheet connectivity
 -------*/
+var sheetData = [];
 const client = new google.auth.JWT(keys.client_email, null, keys.private_key, [
   'https://www.googleapis.com/auth/spreadsheets',
 ]);
@@ -19,47 +19,53 @@ client.authorize((err, tokens) => {
     return; // just get out from the function
   } else {
     console.log('Connected');
-    gsrun(client);
+    gsrun(client).then((data) => {
+      sheetData = data;
+    });
   }
 });
+/* -----
+database connectivity
+-------*/
 
-const gsrun = async (cl) => {
+var gsrun = async (cl) => {
   const gsapi = google.sheets({
     version: 'v4',
     auth: cl,
   });
 
-  // const options = {
-  //   spreadsheetId: '1WOcA5K6oZt3murmZMW-00P0GXwrJ2TBKhQfKxPISTGU',
-  //   range: 'Data!A1:B11',
-
-  // };
   const options = {
-    spreadsheetId: '19otL8gAQTUIYr63Td-v41u7RtvWuMSq2fP1QXCk2gEY',
-    range: 'Sheet1!A3:C6',
+    spreadsheetId: '1PorRlxlCbXveAtXBicBGfn6UFGVt9VZ5hqDtyBzOW9Q', // pincode and address sheet
+    range: 'Sheet1!A1:B100',
   };
 
   let data = await gsapi.spreadsheets.values.get(options);
-  let dataArray = data.data.values; // array is stored from json to var
-  console.log(dataArray);
+  let dataArray = data.data.values;
+
+  return dataArray;
 
   // * updation
-  const update = {
-    //* for updation putting data into sheets
-    spreadsheetId: '19otL8gAQTUIYr63Td-v41u7RtvWuMSq2fP1QXCk2gEY',
-    range: 'Sheet1!G1',
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: dataArray },
-  };
+  // const update = {
+  //   spreadsheetId: '19otL8gAQTUIYr63Td-v41u7RtvWuMSq2fP1QXCk2gEY',
+  //   range: 'Sheet1!G1',
+  //   valueInputOption: 'USER_ENTERED',
+  //   resource: { values: dataArray },
+  // };
 
-  let res = await gsapi.spreadsheets.values.update(update);
+  // let res = await gsapi.spreadsheets.values.update(update);
   // console.log(res);
-  // * performing some operations on array according our needs
-  // let newDataArray = dataArray.filter((row) => {
-  //   return row;
-  // });
-  // console.log(newDataArray);
 };
+
+admin.initializeApp({
+  databaseURL: 'https://ct-chat-bot-2021-default-rtdb.firebaseio.com',
+});
+var database = admin.database();
+// ? //////////////////////////////////////////////////////////////////////////////
+/* -----
+Lets SetUP Global Variables
+-------*/
+let pincodes = new Array();
+// ? //////////////////////////////////////////////////////////////////////////////
 
 // !-------------------------------------------------------------------------------------
 /* -----
@@ -67,13 +73,26 @@ const gsrun = async (cl) => {
 -------*/
 // dont touch this
 
-admin.initializeApp({
-  databaseURL: 'https://ct-chat-bot-2021-default-rtdb.firebaseio.com',
-});
-var database = admin.database();
-
 // https function
 exports.apicall = functions.https.onRequest((req, res) => {
+  function checkPin(inputpin) {
+    let pincodeslocal = [];
+    sheetData.map((e) => {
+      pincodeslocal.push(e[0]);
+    });
+    console.log(pincodeslocal);
+    if (pincodeslocal.includes(inputpin.toString())) {
+      let placesAtPincode = '';
+      let index = pincodeslocal.indexOf(inputpin.toString());
+      placesAtPincode = sheetData[[index]][1];
+      console.log('index is ', index);
+      console.log('infunction ', placesAtPincode);
+      return placesAtPincode;
+    } else {
+      return 'NotFound';
+    }
+  }
+
   const data = req.body.payload.payload;
   const userData = req.body.payload;
   const inputdata = data.text;
@@ -82,83 +101,109 @@ exports.apicall = functions.https.onRequest((req, res) => {
   // removal timeout and sequential code
   // read excel sheet from drive
 
-  // const startConvo = [
-  //   'hi',
-  //   'Hi',
-  //   'hii',
-  //   'hello',
-  //   'Hii',
-  //   'Hello',
-  //   'Hey',
-  //   'Heyy',
-  // ];
+  const startConvo = [
+    'hi',
+    'Hi',
+    'hii',
+    'hello',
+    'Hii',
+    'Hello',
+    'Hey',
+    'Heyy',
+  ];
 
   /* -----
     Logical programming starts
 -------*/
   if (req.method == 'POST') {
     var cval;
+    // let date = new Date();
 
+    database
+      .ref('chatbot')
+      .child(`${userData.sender.phone.toString()}`)
+      .on('value', (snapshot) => {
+        // console.log(typeof snapshot.val().id);
+        cval = snapshot.val().count;
+      });
     if (startConvo.includes(data.text)) {
       database.ref(`chatbot/${userData.sender.phone}`).set({
         count: 1,
         name: `${userData.sender.name}`,
         phone: `${userData.sender.phone}`,
       });
-      res.send('Hi, Please provide the PIN Code.');
+      res.send(`Hello ${userData.sender.name},\nPlease provide the PIN Code.`);
     }
+    setTimeout(() => {
+      if (inputdata.length > 7 && cval == 6) {
+        database
+          .ref('chatbot')
+          .child(userData.sender.phone)
+          .child('Address')
+          .set(inputdata);
+        database
+          .ref('chatbot')
+          .child(userData.sender.phone)
+          .child('count')
+          .set(7);
+        saveData(userData.sender.phone);
+        res.send('Thanks for contacting us.');
+      }
+      if (cval == 5) {
+        database
+          .ref('chatbot')
+          .child(userData.sender.phone)
+          .child('count')
+          .set(6);
 
-    if (inputdata.length > 7) {
-      database
-        .ref('chatbot')
-        .child(userData.sender.phone)
-        .child('Address')
-        .set(inputdata);
-      database
-        .ref('chatbot')
-        .child(userData.sender.phone)
-        .child('count')
-        .set(6);
-      res.send('Thanks for contacting us.');
-    }
-    if (!isNaN(inputdata)) {
-      database
-        .ref('chatbot')
-        .child(`${userData.sender.phone.toString()}`)
-        .on('value', (snapshot) => {
-          // console.log(typeof snapshot.val().id);
-          cval = snapshot.val().count;
-        });
-
-      setTimeout(() => {
-        if (cval == 4) {
-          database
-            .ref('chatbot')
-            .child(userData.sender.phone)
-            .child('count')
-            .set(5);
-          database
-            .ref('chatbot')
-            .child(userData.sender.phone)
-            .child('itemquantity')
-            .set(inputdata);
-          res.send(res.send(`Ok great. Please let us know your address.`));
-        }
-        if (cval == 3) {
-          database
-            .ref('chatbot')
-            .child(userData.sender.phone)
-            .child('count')
-            .set(4);
-          database
-            .ref('chatbot')
-            .child(userData.sender.phone)
-            .child('itemId')
-            .set(inputdata);
-          res.send(`Please enter quantity`);
-        }
-
-        if (inputdata.length === 6 && cval == 1) {
+        database
+          .ref('chatbot')
+          .child(userData.sender.phone)
+          .child('CuttingStyle')
+          .set(inputdata);
+        res.send(res.send(`Thanks,Please let us know your address`));
+      }
+      if (cval == 4) {
+        var productArr = inputdata.split(' ');
+        console.log(productArr);
+        database
+          .ref('chatbot')
+          .child(userData.sender.phone)
+          .child('count')
+          .set(5);
+        database
+          .ref('chatbot')
+          .child(userData.sender.phone)
+          .child('ProductId')
+          .set(productArr[0]);
+        database
+          .ref('chatbot')
+          .child(userData.sender.phone)
+          .child('ProductQuantity')
+          .set(productArr[1]);
+        res.send(res.send(`Thanks, How would you like to cut?`));
+      }
+      if (cval == 3) {
+        database
+          .ref('chatbot')
+          .child(userData.sender.phone)
+          .child('count')
+          .set(4);
+        database
+          .ref('chatbot')
+          .child(userData.sender.phone)
+          .child('areaCode')
+          .set(inputdata);
+        res.send(`Please enter ItemId and quantity`);
+      }
+      if (inputdata.length === 6 && cval == 1) {
+        // check spreadsheet data includes pincode or not
+        var cityPoints = checkPin(inputdata);
+        console.log(`outside the function ${cityPoints}`);
+        if (cityPoints != 'NotFound') {
+          res.send(
+            `We serve the following areas,\n ${cityPoints.toString()},\n please choose an area.`
+          );
           database
             .ref('chatbot')
             .child(userData.sender.phone)
@@ -169,13 +214,110 @@ exports.apicall = functions.https.onRequest((req, res) => {
             .child(userData.sender.phone)
             .child('count')
             .set(3);
-          res.send(`Thanks, here is today's menu. Please let us know what you want, \n
-          make sure you enter the item number and qty.
-          1 - Product 1\n
-          2 - Product 2\n
-          3 - Product 3`);
+        } else {
+          res.send('We dont provide out services to this address');
         }
-      }, 2000);
+      }
+    }, 2000);
+
+    async function saveData(phoneNo) {
+      var today = new Date();
+      var date =
+        today.getFullYear() +
+        '-' +
+        (today.getMonth() + 1) +
+        '-' +
+        today.getDate();
+      var time =
+        today.getHours() + ':' + today.getMinutes() + ':' + today.getSeconds();
+      var orderDate = date + ' ' + time;
+
+      let customerName,
+        customerPhone,
+        productID,
+        productQuantity,
+        pincode,
+        address,
+        areaCode,
+        cuttingStyle;
+      let saveDataArray = [];
+
+      function first(callback) {
+        database
+          .ref('chatbot')
+          .child(phoneNo)
+          .on('value', (snapshot) => {
+            // console.log(typeof snapshot.val().id);
+            customerName = snapshot.val().name;
+            customerPhone = snapshot.val().phone;
+            productID = snapshot.val().ProductId;
+            productQuantity = snapshot.val().ProductQuantity;
+            pincode = snapshot.val().pincode;
+            address = snapshot.val().Address;
+            areaCode = snapshot.val().areaCode;
+            cuttingStyle = snapshot.val().CuttingStyle;
+          });
+        let product = productID + ' | ' + productQuantity;
+        saveDataArray = [
+          customerPhone,
+          orderDate,
+          customerName,
+          product,
+          cuttingStyle,
+          address,
+          pincode,
+          areaCode,
+          'pending',
+        ];
+        callback();
+      }
+
+      function second() {
+        const client = new google.auth.JWT(
+          keys.client_email,
+          null,
+          keys.private_key,
+          ['https://www.googleapis.com/auth/spreadsheets']
+        );
+
+        client.authorize((err, tokens) => {
+          if (err) {
+            console.log(err);
+            return; // just get out from the function
+          } else {
+            console.log('Connected');
+            gsrun(client);
+          }
+        });
+        var gsrun = async (cl) => {
+          const gsapi = google.sheets({
+            version: 'v4',
+            auth: cl,
+          });
+
+          const options = {
+            spreadsheetId: '1E8ZYti2gunPZkybHtlBElEW4rFITwmXRz3Pbn3dLbEo',
+            range: 'Sheet1!A1:I100',
+          };
+
+          let data = await gsapi.spreadsheets.values.get(options);
+          let oldUserLogs = data.data.values;
+          oldUserLogs.push(saveDataArray);
+
+          // * updation
+          const update = {
+            spreadsheetId: '1E8ZYti2gunPZkybHtlBElEW4rFITwmXRz3Pbn3dLbEo',
+            range: 'Sheet1!A1:I100',
+            valueInputOption: 'USER_ENTERED',
+            resource: { values: oldUserLogs },
+          };
+
+          let res = await gsapi.spreadsheets.values.update(update);
+          console.log(res);
+        };
+      }
+
+      first(second);
     }
   }
 });
