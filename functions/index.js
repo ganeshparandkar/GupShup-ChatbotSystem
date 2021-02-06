@@ -9,6 +9,7 @@ const keys = require('./key.json');
 Spreadsheet connectivity
 -------*/
 var sheetData = [];
+var sheetProducts = [];
 const client = new google.auth.JWT(keys.client_email, null, keys.private_key, [
   'https://www.googleapis.com/auth/spreadsheets',
 ]);
@@ -20,10 +21,12 @@ client.authorize((err, tokens) => {
   } else {
     console.log('Connected');
     gsrun(client).then((data) => {
-      sheetData = data;
+      sheetData = data[0];
+      sheetProducts = data[1];
     });
   }
 });
+
 /* -----
 database connectivity
 -------*/
@@ -39,33 +42,26 @@ var gsrun = async (cl) => {
     range: 'Sheet1!A1:B100',
   };
 
+  const productSheet = {
+    spreadsheetId: '1kK2_2s3kwhAzK2LrwFfOFXZWl45WD-wr0fSgOpqrgDw', // pincode and address sheet
+    range: 'Sheet1!A1:C100',
+  };
+
   let data = await gsapi.spreadsheets.values.get(options);
   let dataArray = data.data.values;
 
-  return dataArray;
+  let products = await gsapi.spreadsheets.values.get(productSheet);
+  let productArr = products.data.values;
 
-  // * updation
-  // const update = {
-  //   spreadsheetId: '19otL8gAQTUIYr63Td-v41u7RtvWuMSq2fP1QXCk2gEY',
-  //   range: 'Sheet1!G1',
-  //   valueInputOption: 'USER_ENTERED',
-  //   resource: { values: dataArray },
-  // };
+  let sheets = [dataArray, productArr];
 
-  // let res = await gsapi.spreadsheets.values.update(update);
-  // console.log(res);
+  return sheets;
 };
 
 admin.initializeApp({
   databaseURL: 'https://ct-chat-bot-2021-default-rtdb.firebaseio.com',
 });
 var database = admin.database();
-// ? //////////////////////////////////////////////////////////////////////////////
-/* -----
-Lets SetUP Global Variables
--------*/
-let pincodes = new Array();
-// ? //////////////////////////////////////////////////////////////////////////////
 
 // !-------------------------------------------------------------------------------------
 /* -----
@@ -96,7 +92,19 @@ exports.apicall = functions.https.onRequest((req, res) => {
   const data = req.body.payload.payload;
   const userData = req.body.payload;
   const inputdata = data.text;
+  const menuCard = [
+    {
+      type: 'image',
+      originalUrl:
+        'https://image.freepik.com/free-vector/vector-cartoon-illustration-design-fast-food-restaurant-menu_1441-334.jpg',
+      previewUrl:
+        'https://image.freepik.com/free-vector/vector-cartoon-illustration-design-fast-food-restaurant-menu_1441-334.jpg',
+      caption: 'Sample image',
+    },
+    'Please enter ItemId and quantity',
+  ];
 
+  // context.sendResponse(JSON.stringify(image));
   // check if user exist  if exist then check count or just follow the sequence
   // removal timeout and sequential code
   // read excel sheet from drive
@@ -134,6 +142,7 @@ exports.apicall = functions.https.onRequest((req, res) => {
       });
       res.send(`Hello ${userData.sender.name},\nPlease provide the PIN Code.`);
     }
+
     setTimeout(() => {
       if (inputdata.length > 7 && cval == 6) {
         database
@@ -165,6 +174,7 @@ exports.apicall = functions.https.onRequest((req, res) => {
       }
       if (cval == 4) {
         var productArr = inputdata.split(' ');
+        // map those spit items and fetch sheet data according to it
         console.log(productArr);
         database
           .ref('chatbot')
@@ -181,7 +191,7 @@ exports.apicall = functions.https.onRequest((req, res) => {
           .child(userData.sender.phone)
           .child('ProductQuantity')
           .set(productArr[1]);
-        res.send(res.send(`Thanks, How would you like to cut?`));
+        res.send(res.send(`Thanks, How would you like the cut for ?`));
       }
       if (cval == 3) {
         database
@@ -194,12 +204,13 @@ exports.apicall = functions.https.onRequest((req, res) => {
           .child(userData.sender.phone)
           .child('areaCode')
           .set(inputdata);
-        res.send(`Please enter ItemId and quantity`);
+        res.send(menuCard);
       }
       if (inputdata.length === 6 && cval == 1) {
         // check spreadsheet data includes pincode or not
         var cityPoints = checkPin(inputdata);
         console.log(`outside the function ${cityPoints}`);
+
         if (cityPoints != 'NotFound') {
           res.send(
             `We serve the following areas,\n ${cityPoints.toString()},\n please choose an area.`
@@ -267,7 +278,7 @@ exports.apicall = functions.https.onRequest((req, res) => {
           address,
           pincode,
           areaCode,
-          'pending',
+          'New',
         ];
         callback();
       }
